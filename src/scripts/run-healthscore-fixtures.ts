@@ -24,10 +24,10 @@ const reports = healthscoreFixtures.map((fixture) => {
       score: dimension.score,
       weightedScore: dimension.weightedScore,
       flags: dimension.flags,
+      missingData: dimension.missingData,
       reason: dimension.reason
     }))
   };
 });
 
 console.log(JSON.stringify(reports, null, 2));
-

@@ -7,6 +7,7 @@ import {
   scoreDelivery,
   scoreFinancialHealth,
   scoreNps,
+  scoreRelationship,
   scoreResultImpact,
   scoreTrafficOperation
 } from "../healthscore/scoring.js";
@@ -32,6 +33,7 @@ describe("calculateHealthscore", () => {
     expect(report.finalScore).toBe(77);
     expect(report.status).toBe("Atencao");
     expect(report.flags).toContain("nps_not_responded");
+    expect(report.missingData).toEqual([]);
   });
 
   it("classifica a fixture crítica como Critico e aplica trava financeira 39", () => {
@@ -56,6 +58,59 @@ describe("dimension scoring rules", () => {
     expect(scoreResultImpact({ targetValue: 100, actualValue: 65, clientReported: true }).score).toBe(50);
     expect(scoreResultImpact({ targetValue: 100, actualValue: 50, clientReported: true }).score).toBe(25);
     expect(scoreResultImpact({ targetValue: 100, actualValue: null, clientReported: false }).score).toBe(10);
+    expect(scoreResultImpact({ pacingRate: 0.95, clientReported: true }).score).toBe(75);
+    expect(scoreResultImpact({ pacingRate: 1.1 }).score).toBe(100);
+  });
+
+  it("pontua D2 priorizando sinais de risco relacional", () => {
+    expect(
+      scoreRelationship({
+        stakeholderMood: "positive",
+        coordinatorMoodRating: "Feliz",
+        monthlyCheckinDone: true,
+        clientAbsencesConsecutive: 0
+      }).score
+    ).toBe(100);
+
+    expect(
+      scoreRelationship({
+        stakeholderMood: "neutral",
+        coordinatorMoodRating: "Neutro",
+        monthlyCheckinDone: true,
+        clientAbsencesConsecutive: 0
+      }).score
+    ).toBe(65);
+
+    const negativeWithoutCoordinatorRating = scoreRelationship({
+      stakeholderMood: "negative",
+      coordinatorMoodRating: null,
+      monthlyCheckinDone: true,
+      clientAbsencesConsecutive: 0
+    });
+
+    expect(negativeWithoutCoordinatorRating.score).toBe(35);
+    expect(negativeWithoutCoordinatorRating.flags).toContain("negative_relationship_signal");
+    expect(negativeWithoutCoordinatorRating.missingData).toContain("missing_coordinator_mood_rating");
+
+    expect(
+      scoreRelationship({
+        stakeholderMood: "neutral",
+        coordinatorMoodRating: "Infeliz",
+        monthlyCheckinDone: true,
+        clientAbsencesConsecutive: 0
+      }).score
+    ).toBe(35);
+
+    expect(
+      scoreRelationship({
+        stakeholderMood: "positive",
+        coordinatorMoodRating: "Feliz",
+        monthlyCheckinDone: true,
+        clientAbsencesConsecutive: 2
+      }).score
+    ).toBe(40);
+
+    expect(scoreRelationship({ monthlyCheckinDone: false, clientAbsencesConsecutive: 0 }).score).toBe(20);
   });
 
   it("pontua D3 por operação de tráfego", () => {
@@ -74,6 +129,8 @@ describe("dimension scoring rules", () => {
 
   it("pontua D5 por NPS", () => {
     expect(scoreNps({ responded: true, npsScore: 10, commentSentiment: "positive" }).score).toBe(100);
+    expect(scoreNps({ responded: true, npsScore: 10 }).score).toBe(100);
+    expect(scoreNps({ responded: true, npsScore: 10, commentSentiment: "negative" }).score).toBe(65);
     expect(scoreNps({ responded: true, npsScore: 8 }).score).toBe(65);
     expect(scoreNps({ responded: true, npsScore: 6 }).score).toBe(20);
     expect(scoreNps({ responded: true, npsScore: 4, commentSentiment: "negative" }).score).toBe(10);
@@ -96,9 +153,74 @@ describe("dimension scoring rules", () => {
 
   it("mapeia status por faixa", () => {
     expect(getStatus(80)).toBe("Saudavel");
+    expect(getStatus(79)).toBe("Atencao");
     expect(getStatus(60)).toBe("Atencao");
+    expect(getStatus(59)).toBe("Risco");
     expect(getStatus(40)).toBe("Risco");
     expect(getStatus(39)).toBe("Critico");
   });
-});
 
+  it("aplica travas financeiras 79 e 59 sobre score bruto alto", () => {
+    const healthyInput = healthscoreFixtures.find((item) => item.name === "conta-saudavel")!.input;
+
+    const cappedAt79 = calculateHealthscore({
+      ...healthyInput,
+      financial: {
+        overdueDays: 8,
+        isRecurringOverdue: false
+      }
+    });
+
+    expect(cappedAt79.rawScore).toBe(94);
+    expect(cappedAt79.finalScore).toBe(79);
+    expect(cappedAt79.status).toBe("Atencao");
+
+    const cappedAt59 = calculateHealthscore({
+      ...healthyInput,
+      financial: {
+        overdueDays: 21,
+        isRecurringOverdue: false
+      }
+    });
+
+    expect(cappedAt59.rawScore).toBe(92);
+    expect(cappedAt59.finalScore).toBe(59);
+    expect(cappedAt59.status).toBe("Risco");
+  });
+
+  it("propaga missingData de forma estruturada", () => {
+    const report = calculateHealthscore({
+      account: {
+        accountId: "acc_missing",
+        accountName: "Conta Missing",
+        period: "2026-05",
+        segment: "unknown"
+      },
+      period: "2026-05"
+    });
+
+    expect(report.missingData).toEqual([
+      "missing_result_signal",
+      "missing_relationship_signal",
+      "missing_traffic_operation_signal",
+      "missing_delivery_signal",
+      "missing_nps_signal",
+      "missing_financial_signal"
+    ]);
+    expect(report.dimensions.find((dimension) => dimension.dimension === "D1")?.missingData).toContain("missing_result_signal");
+  });
+
+  it("rejeita divergência entre account.period e period top-level", () => {
+    expect(() =>
+      calculateHealthscore({
+        account: {
+          accountId: "acc_period_mismatch",
+          accountName: "Conta Período Divergente",
+          period: "2026-04",
+          segment: "unknown"
+        },
+        period: "2026-05"
+      })
+    ).toThrow("account.period must match the top-level period");
+  });
+});

@@ -41,7 +41,7 @@ type ScoreDetails = {
 };
 
 export function calculateHealthscore(input: HealthscoreInput, now = new Date()): FinalHealthscoreReport {
-  const parsed = healthscoreInputSchema.parse(input) as HealthscoreInput;
+  const parsed = healthscoreInputSchema.parse(input);
 
   const dimensions = [
     toDimensionScore("D1", scoreResultImpact(parsed.result)),
@@ -61,7 +61,7 @@ export function calculateHealthscore(input: HealthscoreInput, now = new Date()):
     ...dimensions.flatMap((dimension) => dimension.flags),
     ...(cap.applied ? ["financial_cap_applied"] : [])
   ]);
-  const missingData = unique(dimensions.flatMap((dimension) => dimension.flags.filter((flag) => flag.startsWith("missing_"))));
+  const missingData = unique(dimensions.flatMap((dimension) => dimension.missingData));
 
   return {
     accountId: parsed.account.accountId,
@@ -89,7 +89,7 @@ export function scoreResultImpact(input: ResultImpactInput | undefined): ScoreDe
   const actualValue = input.actualValue ?? null;
   const pacingRate = input.pacingRate ?? calculateRate(actualValue, targetValue);
 
-  if (input.clientReported === false || targetValue === null || actualValue === null || pacingRate === null) {
+  if (input.clientReported === false || pacingRate === null) {
     return details(
       10,
       "Cliente ou fonte não reportou meta/resultado suficiente para calcular pacing.",
@@ -142,15 +142,15 @@ export function scoreRelationship(input: RelationshipInput | undefined): ScoreDe
     missingData.push("missing_monthly_checkin");
   }
 
+  if (coordinatorMood === null) {
+    flags.push("missing_coordinator_mood_rating");
+    missingData.push("missing_coordinator_mood_rating");
+  }
+
   let score = 65;
   let reason = "Check-in realizado com humor neutro ou sinal insuficiente para classificação positiva.";
 
-  if (coordinatorMood === null) {
-    score = 50;
-    reason = "Check-in realizado, mas coordenador não preencheu avaliação.";
-    flags.push("missing_coordinator_mood_rating");
-    missingData.push("missing_coordinator_mood_rating");
-  } else if (stakeholderMood === "negative" || coordinatorMood === "Infeliz") {
+  if (stakeholderMood === "negative" || coordinatorMood === "Infeliz") {
     score = 35;
     reason = "Humor negativo identificado pelo agent ou avaliação Infeliz do coordenador.";
     flags.push("negative_relationship_signal");
@@ -158,6 +158,9 @@ export function scoreRelationship(input: RelationshipInput | undefined): ScoreDe
     score = 100;
     reason = "Humor positivo, coordenador Feliz e check-in realizado.";
     flags.push("positive_relationship_signal");
+  } else if (coordinatorMood === null) {
+    score = 50;
+    reason = "Check-in realizado, mas coordenador não preencheu avaliação.";
   } else if (stakeholderMood === "unknown") {
     flags.push("unknown_stakeholder_mood");
   }
@@ -382,6 +385,7 @@ function toDimensionScore(dimension: DimensionId, detailsForDimension: ScoreDeta
     weightedScore: roundScore(score * weight),
     reason: detailsForDimension.reason,
     flags: unique(detailsForDimension.flags),
+    missingData: unique(detailsForDimension.missingData),
     evidenceRefs: unique(detailsForDimension.evidenceRefs)
   };
 }

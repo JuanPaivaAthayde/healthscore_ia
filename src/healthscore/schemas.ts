@@ -71,6 +71,14 @@ export const healthscoreInputSchema = z.object({
   delivery: deliveryInputSchema.optional(),
   nps: npsInputSchema.optional(),
   financial: financialInputSchema.optional()
+}).superRefine((input, ctx) => {
+  if (input.account.period !== input.period) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["account", "period"],
+      message: "account.period must match the top-level period"
+    });
+  }
 });
 
 export const dimensionScoreSchema = z.object({
@@ -81,6 +89,7 @@ export const dimensionScoreSchema = z.object({
   weightedScore: z.number(),
   reason: z.string(),
   flags: z.array(z.string()),
+  missingData: z.array(z.string()),
   evidenceRefs: z.array(z.string())
 });
 
@@ -101,4 +110,3 @@ export const finalHealthscoreReportSchema = z.object({
   missingData: z.array(z.string()),
   generatedAt: z.string()
 });
-

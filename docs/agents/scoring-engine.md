@@ -16,6 +16,8 @@ Coberto por testes em `src/__tests__/scoring.test.ts`.
 
 Fixtures locais em `src/fixtures/healthscore-fixtures.ts`.
 
+Os tipos de domínio são derivados dos schemas Zod em `src/healthscore/schemas.ts`, evitando duas fontes de verdade entre schema e TypeScript.
+
 Runner manual:
 
 ```bash
@@ -60,6 +62,12 @@ Formato interno atual:
 }
 ```
 
+Regras de input:
+
+- `account.period` deve bater com `period`.
+- `result.pacingRate` é aceito como fonte válida mesmo sem `targetValue` e `actualValue`.
+- `targetValue` igual a `0` não permite calcular pacing e cai como dado ausente.
+
 ## Output JSON Obrigatório
 
 Formato conceitual externo:
@@ -98,6 +106,8 @@ Formato interno atual:
   "generatedAt": "2026-05-27T15:00:00.000Z"
 }
 ```
+
+`missingData` é propagado de forma estruturada a partir das dimensões, não inferido por prefixo de flag.
 
 ## Exemplo de Entrada
 
@@ -167,6 +177,7 @@ Formato interno atual:
 - 60% a 79%: 50 pontos.
 - abaixo de 60%: 25 pontos.
 - dado ausente: 10 pontos.
+- se a fonte já enviar `pacingRate`, ele pode ser usado sem meta/realizado brutos.
 - PIC ausente: futuro, não bloqueia V1 inicial.
 
 ### D2 - Relacionamento & Engajamento
@@ -177,6 +188,8 @@ Formato interno atual:
 - check-in sem avaliação do coordenador: 50 pontos.
 - nenhum check-in: 20 pontos.
 - cliente ausente em 2+ reuniões: teto da dimensão 40.
+- avaliação `Infeliz` do coordenador é tratada como sinal negativo e pontua 35.
+- quando houver humor negativo e avaliação do coordenador ausente, prevalece o risco negativo: 35 pontos com flag de dado ausente.
 
 ### D3 - Operação de Tráfego
 
@@ -197,7 +210,8 @@ Formato interno atual:
 
 ### D5 - Satisfação / NPS
 
-- NPS 9 ou 10 + comentário positivo: 100 pontos.
+- NPS 9 ou 10 sem comentário negativo: 100 pontos.
+- NPS 9 ou 10 com comentário negativo: 65 pontos e flag de conflito de sentimento.
 - NPS 7 ou 8: 65 pontos.
 - NPS 0 a 6: 20 pontos.
 - NPS 0 a 6 + comentário negativo confirmado: 10 pontos.
@@ -231,6 +245,8 @@ Formato interno atual:
 - 40 a 59: `Risco`
 - 0 a 39: `Critico`
 
+O status é calculado sobre `finalScore`, que é o score arredondado depois da aplicação de trava financeira. Exemplo: raw score `79.6` arredonda para `80` e entra como `Saudavel`.
+
 ## Critérios de Validação
 
 - Deve produzir o mesmo resultado para o mesmo input.
@@ -241,3 +257,6 @@ Formato interno atual:
 - Deve passar em `npm run typecheck`.
 - Deve passar em `npm test`.
 - Deve manter fixtures saudavel, atenção e crítica com status esperado.
+- Deve testar D2 diretamente, incluindo ausência de avaliação, humor negativo e teto por ausência do cliente.
+- Deve testar travas financeiras 79, 59 e 39.
+- Deve testar `missingData` como campo estruturado.

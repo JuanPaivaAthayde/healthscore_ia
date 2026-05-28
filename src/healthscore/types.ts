@@ -1,6 +1,23 @@
-export type HealthStatus = "Saudavel" | "Atencao" | "Risco" | "Critico" | "Incompleto";
+import type { z } from "zod";
+import type {
+  accountInputSchema,
+  accountSegmentSchema,
+  deliveryInputSchema,
+  dimensionIdSchema,
+  dimensionScoreSchema,
+  finalHealthscoreReportSchema,
+  financialInputSchema,
+  healthscoreInputSchema,
+  healthStatusSchema,
+  npsInputSchema,
+  relationshipInputSchema,
+  resultImpactInputSchema,
+  trafficOperationInputSchema
+} from "./schemas.js";
 
-export type DimensionId = "D1" | "D2" | "D3" | "D4" | "D5" | "D6";
+export type HealthStatus = z.infer<typeof healthStatusSchema>;
+
+export type DimensionId = z.infer<typeof dimensionIdSchema>;
 
 export type SourceName =
   | "kuri_insights"
@@ -11,19 +28,9 @@ export type SourceName =
   | "meeting_transcript"
   | "pic_future";
 
-export type AccountSegment = "ecommerce" | "inside_sales" | "b2b" | "institutional" | "unknown";
+export type AccountSegment = z.infer<typeof accountSegmentSchema>;
 
-export type AccountInput = {
-  accountId: string;
-  accountName: string;
-  period: string;
-  coordinatorId?: string;
-  coordinatorName?: string;
-  amId?: string;
-  amName?: string;
-  segment: AccountSegment;
-  metadata?: Record<string, string | number | boolean | null>;
-};
+export type AccountInput = z.infer<typeof accountInputSchema>;
 
 export type Evidence = {
   externalId: string;
@@ -31,91 +38,22 @@ export type Evidence = {
   notes: string;
 };
 
-export type DimensionScore = {
-  dimension: DimensionId;
-  name: string;
-  score: number;
-  weight: number;
-  weightedScore: number;
-  reason: string;
-  flags: string[];
-  evidenceRefs: string[];
-};
+export type DimensionScore = z.infer<typeof dimensionScoreSchema>;
 
-export type ResultImpactInput = {
-  targetMetric?: string;
-  targetValue?: number | null;
-  actualValue?: number | null;
-  pacingRate?: number | null;
-  clientReported?: boolean | null;
-  evidenceRefs?: string[];
-};
+export type ResultImpactInput = z.infer<typeof resultImpactInputSchema>;
 
-export type RelationshipInput = {
-  stakeholderMood?: "positive" | "neutral" | "negative" | "unknown" | null;
-  coordinatorMoodRating?: "Feliz" | "Neutro" | "Infeliz" | null;
-  monthlyCheckinDone?: boolean | null;
-  clientAbsencesConsecutive?: number | null;
-  evidenceRefs?: string[];
-};
+export type RelationshipInput = z.infer<typeof relationshipInputSchema>;
 
-export type TrafficOperationInput = {
-  hasStructuredFunnel?: boolean | null;
-  kuriTrackingActive?: boolean | null;
-  mediaBudgetMeetsMinimum?: boolean | null;
-  evidenceRefs?: string[];
-};
+export type TrafficOperationInput = z.infer<typeof trafficOperationInputSchema>;
 
-export type DeliveryInput = {
-  tasksTotal?: number | null;
-  tasksOnTime?: number | null;
-  tasksLate?: number | null;
-  onTimeRate?: number | null;
-  evidenceRefs?: string[];
-};
+export type DeliveryInput = z.infer<typeof deliveryInputSchema>;
 
-export type NpsInput = {
-  responded?: boolean | null;
-  npsScore?: number | null;
-  commentSentiment?: "positive" | "neutral" | "negative" | "unknown" | null;
-  sentimentConfidence?: number | null;
-  evidenceRefs?: string[];
-};
+export type NpsInput = z.infer<typeof npsInputSchema>;
 
-export type FinancialInput = {
-  overdueDays?: number | null;
-  isRecurringOverdue?: boolean | null;
-  evidenceRefs?: string[];
-};
+export type FinancialInput = z.infer<typeof financialInputSchema>;
 
-export type HealthscoreInput = {
-  account: AccountInput;
-  period: string;
-  result?: ResultImpactInput;
-  relationship?: RelationshipInput;
-  trafficOperation?: TrafficOperationInput;
-  delivery?: DeliveryInput;
-  nps?: NpsInput;
-  financial?: FinancialInput;
-};
+export type HealthscoreInput = z.infer<typeof healthscoreInputSchema>;
 
-export type FinancialCap = {
-  applied: boolean;
-  value: number | null;
-  reason: string | null;
-};
+export type FinancialCap = z.infer<typeof finalHealthscoreReportSchema>["financialCap"];
 
-export type FinalHealthscoreReport = {
-  accountId: string;
-  accountName: string;
-  period: string;
-  rawScore: number;
-  finalScore: number;
-  status: HealthStatus;
-  financialCap: FinancialCap;
-  dimensions: DimensionScore[];
-  flags: string[];
-  missingData: string[];
-  generatedAt: string;
-};
-
+export type FinalHealthscoreReport = z.infer<typeof finalHealthscoreReportSchema>;

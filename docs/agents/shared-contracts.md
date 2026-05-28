@@ -62,6 +62,7 @@ A documentação abaixo usa `snake_case` porque representa o payload externo esp
   "weighted_score": 12,
   "reason": "85% das tasks foram entregues no prazo no período.",
   "flags": [],
+  "missing_data": [],
   "evidence_refs": ["ekyte:acc_001:2026-05"]
 }
 ```
@@ -120,6 +121,8 @@ Forma interna atual no TypeScript:
 }
 ```
 
+Cada item de `dimensions` também possui `missingData`, para que ausência de dados seja propagada por contrato em vez de inferida por convenção de nome de flag.
+
 ## HealthscoreInput Interno
 
 Este é o formato usado hoje pelo `ScoringEngine` local:
@@ -140,6 +143,7 @@ Este é o formato usado hoje pelo `ScoringEngine` local:
     "targetMetric": "revenue",
     "targetValue": 100000,
     "actualValue": 85000,
+    "pacingRate": 0.85,
     "clientReported": true
   },
   "relationship": {
@@ -169,6 +173,13 @@ Este é o formato usado hoje pelo `ScoringEngine` local:
   }
 }
 ```
+
+Regras de fronteira:
+
+- `account.period` deve ser igual ao `period` top-level.
+- `pacingRate` pode ser informado diretamente quando a fonte já trouxer o pacing calculado.
+- Quando `pacingRate` vier direto, `targetValue` e `actualValue` podem estar ausentes.
+- Zod é a fonte de verdade dos contratos internos; os tipos TypeScript são derivados dos schemas.
 
 ## Enums
 
