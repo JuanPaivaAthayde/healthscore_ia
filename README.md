@@ -11,9 +11,31 @@ Este README descreve a arquitetura ideal do sistema e a V1 inicial. A RFC origin
 - Frontend: Next.js + Tailwind CSS.
 - Backend/App: Next.js server-side, API Routes ou Server Actions.
 - Database: Supabase.
-- Agents: OpenAI API.
+- Agents locais: OpenAI API via código do projeto.
+- Agent de transcrição: n8n externo, já existente.
 - Scheduler: cron no servidor, executado em data e horário específicos.
 - Output principal: dashboard e aplicação própria.
+
+## Desenvolvimento Local
+
+Nesta fase, o projeto já possui um núcleo TypeScript local para validar o Healthscore sem LLM, sem APIs externas e sem Supabase.
+
+Comandos:
+
+```bash
+npm install
+npm run typecheck
+npm test
+npm run healthscore:mock
+```
+
+Estratégia de validação:
+
+- testar cada componente isolado, começando pelo `ScoringEngine`;
+- testar o pipeline completo com fixtures;
+- manter outputs esperados para contas fictícias;
+- no futuro, validar cada agent LLM separadamente antes de ligar no orchestrator;
+- quando um output estiver errado, identificar se a falha está no agent, no schema, no scoring ou no orchestrator.
 
 ## Princípios
 
@@ -35,7 +57,7 @@ O PIC faz parte da arquitetura ideal, mas será implementado em uma etapa futura
 - a lógica de `Healthscore Incompleto` fica documentada, mas não ativa;
 - o agente de pré-requisitos/PIC será tratado como componente futuro.
 
-O agent de transcrição de reunião já existe e será acoplado ao sistema. O contrato exato de input/output desse agent será documentado quando o README específico dele estiver disponível.
+O agent de transcrição de reunião já existe e roda fora deste projeto, em um workflow n8n. Neste código, vamos implementar apenas o `TranscriptAgentAdapter`, responsável por consumir/normalizar o output do n8n para alimentar `D2 - Relacionamento & Engajamento`.
 
 ## Arquitetura Geral
 
@@ -49,7 +71,8 @@ flowchart TD
   ING --> EK["Ekyte MCP"]
   ING --> NPS["NPS Form"]
   ING --> FIN["Planilha Financeira / Gabi"]
-  ING --> TRS["Meeting Transcript Agent"]
+  N8N["n8n Transcript Agent"] --> TRS["TranscriptAgentAdapter"]
+  TRS --> ORCH
 
   ORCH --> SCORE["Scoring Engine"]
   SCORE --> RISK["Risk Diagnosis Agent"]
@@ -96,17 +119,26 @@ Agents/conectores previstos:
 
 Cada agent deve retornar JSON estruturado, com fonte, período, conta e evidências.
 
-### Meeting Transcript Agent
+### Transcript Agent via n8n
 
-Agent já existente que será acoplado ao sistema.
+Agent já existente, executado fora deste projeto em n8n.
 
-Responsabilidades esperadas:
+Responsabilidades do workflow n8n:
 
-- analisar transcrições de reuniões;
-- identificar humor do stakeholder;
-- apontar sinais de satisfação, tensão, frustração ou alinhamento;
-- retornar evidências resumidas;
-- fornecer insumos para a dimensão `D2 - Relacionamento & Engajamento`.
+- monitorar pasta de transcrições no Google Drive;
+- filtrar arquivos que parecem transcrições;
+- extrair texto;
+- enviar o texto para IA;
+- gerar análise estruturada;
+- publicar resumo no Google Chat.
+
+Responsabilidades do `TranscriptAgentAdapter` local:
+
+- receber o output do n8n;
+- normalizar indicador, sentimento, tom, resumo e próximos passos;
+- mapear o sinal para `RelationshipInput`;
+- alimentar `D2 - Relacionamento & Engajamento`;
+- não recriar nem reexecutar a análise da transcrição.
 
 Contrato temporário esperado:
 
@@ -122,7 +154,7 @@ Contrato temporário esperado:
 }
 ```
 
-Esse schema será ajustado quando o README do agent de transcrição for integrado.
+Esse schema será ajustado conforme o payload real exportado pelo n8n.
 
 ### Scoring Engine
 
